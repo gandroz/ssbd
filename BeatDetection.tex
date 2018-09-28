@@ -1,0 +1,149 @@
+\documentclass{article}
+
+\usepackage{arxiv}
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsmath}        % blackboard math symbols
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+
+\title{Single Shot ECG Beat Detection}
+
+
+\author{
+  Guillaume Androz\thanks{also guillaume.androz@grenoble-inp.org} \\
+  Icentia Inc.\\
+  2750 av. Einstein\\
+  Quebec, QC G1P4R1 \\
+  \texttt{guillaume.androz@icentia.com} \\
+   \And
+  Pierre Fecteau\\
+  Icentia Inc.\\
+  2750 av. Einstein\\
+  Quebec, QC G1P4R1 \\
+  \texttt{pierre.fecteau@icentia.com} \\
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\lipsum[1]
+\end{abstract}
+
+
+% keywords can be removed
+\keywords{ECG \and CNN \and single shot \and fully convolutional}
+
+
+\section{Introduction}
+Revue de litterature des methodes classiques de detection des battements. Voir \cite{Xiang2018} pour plus de details, ils ont une super belle revue de litterature.
+Voir aussi des references qui utilisent les CNN pour detecter les battements. Xiang \cite{Xiang2018} les utilise mais c'est probablement extremement long a processer tout ca. A voir et comprendre un peu mieux comment il fonctionne.
+Dans le revue des CNN, parler que ce probleme se rapproche de ce qu'on peut trouver en vision avec les SSD, YOLO, Faster-RCNN qui ont pour mission de localiser puis categoriser un objet. Nous on veut juste le localiser dans un premier temps. Ensuite, mentionner les face/key points qui vont un peu dans le meme sens que ce qu'on fait aussi. L'idee par contre avec les key points c'est qu'on connait a priori le nombre de points a trouver dans l'image/signal, alors que nous on veut que ce soit adaptatif.
+Voir les participants au challenge 2017 pour voir a quel point il y a des choses qui se rapprochent de nous. 
+Peut etre mentionner ici qu'on a du data annote maison, mais que certaines fois ca necessite un ajustement manuel qui est long et fatidieux. Pour eviter ca, on cherche une autre methode plus generique qui saurait s'adapter a tout: CNN.
+
+\section{ECG datasets}
+\label{sec:headings}
+
+Juste introduire pour mentionner qu'on entraine avec nos donnees puis qu'on teste avec physionet pour pouvoir se comparer avec les autres articles.
+
+\subsection{Training with data from Cardiostat\texttrademark}
+Decrire ce qu'est le cardiostat sans sombrer dans le pamphlet marketing. Juste preciser que c'est un genre de patch avec deux electrodes donc 1-lead, sur 7/14 jours. Mentionner que les signaux se degradent tranquillement dans le temps, que le patient bouge beaucoup et donc qu'on peut avoir beaucoup de bruit, que dependemment de l'installation il peut y avoir des signaux hypovoltes (depend aussi du patient) etc. Bref qu'on a des donnees de la vraie vie. Echantillonnage a 250Hz. Donnees sont tous des patients canadiens, majoritairement ontariens a priori de toute origine ethnique et de sexes differents. Mentionner qu'il peut y avoir des cas de pacemaker pour compliquer un peu plus la tache.
+Dire que toutes les donnees ont ete annotees par des techniciens en electrophysiologie a l'aide d'un logiciel maison. Les techs voient 100\% de chaque trace et donc chaque battement. La pre-detection est faite a l'aide d'un algo classique (\textbf{mentionner lequel en reference a l'introduction}) mais comme c'est pas 100\% bon, il faut parfois le corriger manuellement et donc annoter les battements a la main.
+
+\subsection{Testing with physionet}
+Dire qu'on utilise les data de MIT-BIH-AR (\textbf{a confirmer}) pour tester et se benchmarker. Voir aussi si on peut faire la meme chose avec les donnees du challenge 2017.
+
+\section{Methodology}
+\subsection{Dataset}
+Expliquer ici ce qu'on fait avec un trace: 
+\begin{itemize}
+\item On le filtre pour redresser le signal et enlever le bruit haute frequence tel que mentionne dans la norme ISO-1489???
+\item On decoupe le trace en sections de 512 samples soit environ 2s
+\item Chaque section est decoupee en 16 cellules de 32 samples de long soit 128ms. Sachant que physiologiquement c'est impossible de battre a plus de 300bpm (a valider) soit 200ms, on s'assure de n'avoir qu'un seul battement par cellule max.
+\item On construit alors la matrice cible Y ou chaque ligne est un vecteur avec comme premiere coordonnee la position relative du battement (s'il existe) et la probabilite d'apparition du battement. Ces deux coordonnees sont comprises entre 0 et 1.
+\item Mettre un peu l'algo qui permet de construire ce dataset ou plus particulierement la matrice Y pour chaque section
+\end{itemize}
+
+\subsection{Model architecture}
+Exposer ici notre architecture et comment on est arrive a ca: fully convolutional, peut-etre mentionner qu'on pourrait penser a ajouter des fonctionnalites pour regulariser plus comme la classe du battement.
+Mentionner les differentes strategies pour regulariser: L2, dropout et data augmentation. Parler de Keras ?
+\subsubsection{Loss function}
+Parler de la fonction de pertes et de ses trois composantes.
+\subsubsection{Data augmentation}
+Montrer ici comment on fait ca, les strategies qui ont ete employees: distortion du signal, ajout de bruit blanc.
+\subsubsection{Optimizer}
+Dire qu'on utilise un SGD ou un Adam, un cycleLR, le batch size, nombre d'epochs
+
+\section{Results}
+\subsection{Training optimization}
+\subsubsection{Influence du LR}
+Retrouver l'article qui parle du cyling LR et de l'importance parfois de l'augmenter pour se sortir d'un minimum local. Montrer que ca a une grande influence dans notre cas.
+\subsubsection{Influence du data augmentation}
+Montrer des resultats avec et sans data augmentation. Trouver une belle explication de pourquoi ca aide: regularisation, plus de cas comme on peut etre limiter...
+\subsection{Metrics}
+Exposer les differentes metriques:
+sensitivity (Sen), positive predictivity rate (PPR), detection error rate (DER), and accuracy (Acc)
+
+\begin{align}
+   Sen &= 100 \cdot \frac{TP}{TP+FN}\\
+   PPR &= 100 \cdot \frac{TP}{TP+FP}\\
+   DER &= 100 \cdot \frac{FN+FP}{TP+FN}\\
+   Acc &= 100 \cdot \frac{TP}{TP+FP+FN}\\
+\end{align}
+\subsection{Inference}
+
+
+
+\subsection{Figures}
+\lipsum[10] 
+See Figure \ref{fig:fig1}. Here is how you add footnotes. \footnote{Sample of the first footnote.}
+\lipsum[11] 
+
+\begin{figure}
+  \centering
+  \fbox{\rule[-.5cm]{4cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+  \caption{Sample figure caption.}
+  \label{fig:fig1}
+\end{figure}
+
+\subsection{Tables}
+\lipsum[12]
+See awesome Table~\ref{tab:table}.
+
+\begin{table}
+ \caption{Sample table title}
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    \multicolumn{2}{c}{Part}                   \\
+    \cmidrule(r){1-2}
+    Name     & Description     & Size ($\mu$m) \\
+    \midrule
+    Dendrite & Input terminal  & $\sim$100     \\
+    Axon     & Output terminal & $\sim$10      \\
+    Soma     & Cell body       & up to $10^6$  \\
+    \bottomrule
+  \end{tabular}
+  \label{tab:table}
+\end{table}
+
+\subsection{Lists}
+\begin{itemize}
+\item Lorem ipsum dolor sit amet
+\item consectetur adipiscing elit. 
+\item Aliquam dignissim blandit est, in dictum tortor gravida eget. In ac rutrum magna.
+\end{itemize}
+
+
+
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}
